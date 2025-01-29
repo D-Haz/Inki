@@ -1,15 +1,18 @@
-<!DOCTYPE html> 
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>Rorschach InkiGL Blots 0.3.2.2</title>
+    <title>Inki Blot V0.3.2.3</title>
     <style>
         body { margin: 0; overflow: hidden; background: #fff; }
-        canvas { position: fixed; width: 100vw; height: 100vh; }
+        canvas { position: fixed; width: 100vw; height: 100vh;
+            filter: blur(1px) contrast(150%); }
+        #speed-slider { position: fixed; top: 10px; left: 10px; opacity: 0;}
     </style>
 </head>
 <body>
     <canvas id="canvas"></canvas>
+    <input id="speed-slider" type="range" min="0.001" max="0.1" step="0.001" value="0.01">
     <script id="vertexShader" type="x-shader/x-vertex">
         attribute vec2 position;
         varying vec2 vUv;
@@ -73,13 +76,14 @@
     </script>
     <script>
         const config = {
-            cellSize: 2,
-            initialCells: 0.001,
-            mutationRate: 0.00000000000001,
-            fadeRate: 0.90
+            cellSize: 3.5,
+            initialCells: 0.000000005,
+            mutationRate: 0.0003,
+            fadeRate: 0.93
         };
         
         let gl, program, buffers, frameBuffer, textures = [];
+        let speed = 0.000000000003;
         
         function initGL() {
             const canvas = document.querySelector('canvas');
@@ -108,6 +112,13 @@
             gl.uniform1f(gl.getUniformLocation(program, 'initialCells'), config.initialCells);
             gl.uniform1f(gl.getUniformLocation(program, 'mutationRate'), config.mutationRate);
             gl.uniform1f(gl.getUniformLocation(program, 'fadeRate'), config.fadeRate);
+            
+            // Initialize speed slider
+            const speedSlider = document.getElementById('speed-slider');
+            speedSlider.value = speed;
+            speedSlider.oninput = () => {
+                speed = parseFloat(speedSlider.value);
+            };
         }
         
         function createBuffer() {
@@ -150,7 +161,7 @@
             gl.useProgram(program);
             
             // Update uniforms
-            gl.uniform1f(gl.getUniformLocation(program, 'uTime'), time * 0.001);
+            gl.uniform1f(gl.getUniformLocation(program, 'uTime'), time * speed);
             gl.uniform2f(gl.getUniformLocation(program, 'uResolution'), gl.canvas.width, gl.canvas.height);
             
             // Set up vertex buffer
