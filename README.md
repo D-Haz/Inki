@@ -27,7 +27,7 @@ A JavaScript implementation of the Game of Life algorithm, rendered on a canvas 
 1. Clone the repository: `git clone https://github.com/your-username/dynamic-ink-blot-simulation.git`
 2. Open the `index.html` file in a web browser to see the simulation in action.
 
-**Dynamic Ink Blot Simulation Documentation**
+**Documentation**
 =====================================================
 
 **Overview**
