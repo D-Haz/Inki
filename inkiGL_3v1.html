@@ -1,0 +1,178 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>Rorschach Fluid</title>
+    <style>
+        body { margin: 0; overflow: hidden; }
+        canvas { position: fixed; width: 100vw; height: 100vh; }
+    </style>
+</head>
+<body>
+<canvas id="canvas"></canvas>
+<script id="vertexShader" type="x-shader/x-vertex">
+    attribute vec2 position;
+    varying vec2 vUv;
+    void main() {
+        vUv = 0.5 * (position + 1.0);
+        gl_Position = vec4(position, 0.0, 1.0);
+    }
+</script>
+<script id="fragmentShader" type="x-shader/x-fragment">
+    precision highp float;
+    varying vec2 vUv;
+    uniform sampler2D texture;
+    uniform float uTime;
+    uniform vec2 uResolution;
+    
+    // Tweakable parameters
+    #define CELL_SIZE 0.5         // Pixel density (lower = more detailed)
+    #define INITIAL_CELLS 0.01    // Initial alive probability
+    #define MUTATION_RATE 0.001   // Random mutation probability
+    #define FADE_FACTOR 0.98      // Fade out rate (0.9-0.99)
+    #define COLOR_BLEED 1.2       // Color blending intensity
+    
+    float random(vec2 st) {
+        return fract(sin(dot(st.xy, vec2(12.9898,78.233))) * 43758.5453123);
+    }
+    
+    void main() {
+        vec2 uv = vUv;
+        uv.x = abs(uv.x - 0.5) + 0.5; // Mirror symmetry
+        
+        vec2 pixel = CELL_SIZE / uResolution;
+        vec3 acc = vec3(0.0);
+        float count = 0.0;
+        
+        // Game of Life neighborhood sampling
+        for(float x = -1.0; x <= 1.0; x++) {
+            for(float y = -1.0; y <= 1.0; y++) {
+                vec2 offset = vec2(x, y) * pixel;
+                vec3 sample = texture2D(texture, uv + offset).rgb;
+                acc += sample;
+                count += step(0.1, length(sample));
+            }
+        }
+        
+        // Game of Life rules
+        vec3 current = texture2D(texture, uv).rgb;
+        float alive = step(0.1, length(current));
+        float neighbors = count - alive;
+        float nextAlive = (neighbors == 3.0) || (alive == 1.0 && neighbors == 2.0) ? 1.0 : 0.0;
+        
+        // Mutation and fading
+        float mutation = step(1.0 - MUTATION_RATE, random(uv + uTime));
+        nextAlive = max(nextAlive, mutation);
+        vec3 color = mix(current * FADE_FACTOR, vec3(1.0), nextAlive);
+        
+        // Initial seed
+        float seed = step(1.0 - INITIAL_CELLS, random(uv));
+        color = mix(color, vec3(1.0), seed * step(uTime, 1.0));
+        
+        // Color blending
+        vec3 bleed = acc / 9.0 * COLOR_BLEED;
+        gl_FragColor = vec4(mix(color, bleed, 0.5), 1.0);
+    }
+</script>
+<script>
+const config = {
+    CELL_SIZE: 0.5,         // Tweak cell detail (0.1-2.0)
+    INITIAL_CELLS: 0.01,    // Initial pattern density (0.001-0.1)
+    MUTATION_RATE: 0.001,   // Mutation frequency (0.0-0.01)
+    FADE_FACTOR: 0.98,      // Fade speed (0.9-0.999)
+    COLOR_BLEED: 1.2        // Ink spread (1.0-2.0)
+};
+
+let gl, program, buffers, frameBuffer, textures = [];
+
+function initGL() {
+    const canvas = document.querySelector('canvas');
+    gl = canvas.getContext('webgl');
+    resizeCanvas();
+    
+    program = gl.createProgram();
+    const vertexShader = compileShader(gl.VERTEX_SHADER, document.getElementById('vertexShader').text);
+    const fragmentShader = compileShader(gl.FRAGMENT_SHADER, document.getElementById('fragmentShader').text);
+    gl.attachShader(program, vertexShader);
+    gl.attachShader(program, fragmentShader);
+    gl.linkProgram(program);
+    
+    buffers = createBuffer();
+    frameBuffer = gl.createFramebuffer();
+    textures = [createTexture(), createTexture()];
+}
+
+function createBuffer() {
+    const buffer = gl.createBuffer();
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffer);
+    gl.bufferData(gl.ARRAY_BUFFER, new Float32Array([-1, -1, 1, -1, -1, 1, 1, 1]), gl.STATIC_DRAW);
+    return buffer;
+}
+
+function createTexture() {
+    const texture = gl.createTexture();
+    gl.bindTexture(gl.TEXTURE_2D, texture);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.NEAREST);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.drawingBufferWidth, gl.drawingBufferHeight, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    return texture;
+}
+
+function compileShader(type, source) {
+    const shader = gl.createShader(type);
+    gl.shaderSource(shader, source);
+    gl.compileShader(shader);
+    return shader;
+}
+
+function resizeCanvas() {
+    const canvas = gl.canvas;
+    canvas.width = window.innerWidth * devicePixelRatio;
+    canvas.height = window.innerHeight * devicePixelRatio;
+    gl.viewport(0, 0, canvas.width, canvas.height);
+}
+
+function render(time) {
+    gl.useProgram(program);
+    
+    // Update uniforms
+    gl.uniform1f(gl.getUniformLocation(program, 'uTime'), time * 0.001);
+    gl.uniform2f(gl.getUniformLocation(program, 'uResolution'), gl.canvas.width, gl.canvas.height);
+    
+    // Set up vertex buffer
+    const positionLocation = gl.getAttribLocation(program, 'position');
+    gl.enableVertexAttribArray(positionLocation);
+    gl.bindBuffer(gl.ARRAY_BUFFER, buffers);
+    gl.vertexAttribPointer(positionLocation, 2, gl.FLOAT, false, 0, 0);
+    
+    // Ping-pong between textures
+    gl.bindFramebuffer(gl.FRAMEBUFFER, frameBuffer);
+    gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.COLOR_ATTACHMENT0, gl.TEXTURE_2D, textures[1], 0);
+    gl.bindTexture(gl.TEXTURE_2D, textures[0]);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    
+    // Swap textures
+    textures.reverse();
+    
+    // Render to screen
+    gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+    gl.bindTexture(gl.TEXTURE_2D, textures[0]);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    
+    requestAnimationFrame(render);
+}
+
+window.addEventListener('resize', () => {
+    resizeCanvas();
+    textures.forEach(texture => {
+        gl.bindTexture(gl.TEXTURE_2D, texture);
+        gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.canvas.width, gl.canvas.height, 0, gl.RGBA, gl.UNSIGNED_BYTE, null);
+    });
+});
+
+initGL();
+requestAnimationFrame(render);
+</script>
+</body>
+</html>
