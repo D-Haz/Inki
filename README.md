@@ -1,4 +1,4 @@
-# Inki 2D
+# InkiCanvas
 
 **Dynamic Ink Blot Simulation**
 =============================
