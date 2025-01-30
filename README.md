@@ -111,3 +111,7 @@ You can customize the simulation by adjusting the following parameters:
 * `mutationRate`: The probability of a cell mutating to a different state.
 
 These parameters can be adjusted by modifying the `InkBlotLife` class constructor or by creating a new instance with custom parameters.
+
+# InkiGL and WebGL Implementation Details
+
+The WebGL implementation leverages GPU acceleration for improved performance. It is a work in progress.
