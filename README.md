@@ -112,6 +112,6 @@ You can customize the simulation by adjusting the following parameters:
 
 These parameters can be adjusted by modifying the `InkBlotLife` class constructor or by creating a new instance with custom parameters.
 
-# InkiGL and WebGL Implementation Details
+# InkiGL and WebGL Implementation
 
 The WebGL implementation leverages GPU acceleration for improved performance. It is a work in progress.
