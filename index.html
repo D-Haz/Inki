@@ -2,7 +2,7 @@
 <html lang="en">
 <head>
     <meta charset="UTF-8">
-    <title>inki2D V1.5</title>
+    <title>Dynamic Ink Blot Simulation</title>
     <style>
         body, html {
             margin: 0;
@@ -17,7 +17,7 @@
             width: 100vw;
             height: 100vh;
             mix-blend-mode: multiply;
-            filter: blur(3px) contrast(500%);
+            filter: blur(5px) contrast(900%);
         }
     </style>
 </head>
@@ -25,160 +25,240 @@
     <canvas id="inkCanvas"></canvas>
 
     <script>
-        class InkBlotLife {
-            constructor(canvas) {
-                this.canvas = canvas;
-                this.ctx = canvas.getContext('2d');
-                this.width = canvas.width = window.innerWidth;
-                this.height = canvas.height = window.innerHeight;
-                
-                this.cellSize = 11; // Adjustable cell size for more detail
-                this.speed = 50; // Speed control (in milliseconds)
-                
-                // Control the number of initial cells and mutation probability
-                this.initialCellProbability = 0.004; // Lower this value for fewer initial cells
-                this.mutationRate = 0.0095; // Probability of random cell state change
+class InkBlotLife {
+    constructor(canvas) {
+        this.canvas = canvas;
+        this.ctx = canvas.getContext('2d');
+        this.width = canvas.width = window.innerWidth;
+        this.height = canvas.height = window.innerHeight;
+        
+        this.cellSize = 12; // Adjustable cell size for more detail
+        this.speed = 51; // Speed control (in milliseconds)
+        
+        // Control the number of initial cells and mutation probability
+        this.initialCellProbability = 0.09; // Lower this value for fewer initial cells
+        this.mutationRate = 0.0095; // Probability of random cell state change
 
-                this.cols = Math.floor(this.width / this.cellSize);
-                this.rows = Math.floor(this.height / this.cellSize);
-                
-                this.grid = this.createGrid();
-                this.frameCount = 0;
+        this.cols = Math.floor(this.width / this.cellSize);
+        this.rows = Math.floor(this.height / this.cellSize);
+        
+        this.grid = this.createGrid();
+        this.prevGrid = this.createGrid();
+        this.dyingMutations = [];
+        this.frameCount = 0;
+    }
+
+    createGrid() {
+        return Array.from({ length: this.rows }, () => 
+            Array.from({ length: this.cols }, () => Math.random() < this.initialCellProbability)
+        );
+    }
+
+    countNeighbors(x, y) {
+        let count = 0;
+        for (let i = -1; i <= 1; i++) {
+            for (let j = -1; j <= 1; j++) {
+                if (i === 0 && j === 0) continue;
+                const newX = (x + i + this.rows) % this.rows;
+                const newY = (y + j + this.cols) % this.cols;
+                count += this.grid[newX][newY] ? 1 : 0;
             }
+        }
+        return count;
+    }
 
-            createGrid() {
-                return Array.from({ length: this.rows }, () => 
-                    Array.from({ length: this.cols }, () => Math.random() < this.initialCellProbability)
-                );
-            }
+    nextGeneration() {
+        const newGrid = this.grid.map(row => [...row]);
+        this.dyingMutations = [];
 
-            countNeighbors(x, y) {
-                let count = 0;
-                for (let i = -1; i <= 1; i++) {
-                    for (let j = -1; j <= 1; j++) {
-                        if (i === 0 && j === 0) continue;
-                        const newX = (x + i + this.rows) % this.rows;
-                        const newY = (y + j + this.cols) % this.cols;
-                        count += this.grid[newX][newY] ? 1 : 0;
+        for (let x = 0; x < this.rows; x++) {
+            for (let y = 0; y < this.cols; y++) {
+                const neighbors = this.countNeighbors(x, y);
+
+                // Standard Game of Life rules
+                newGrid[x][y] = (this.grid[x][y] && (neighbors === 2 || neighbors === 3)) || (!this.grid[x][y] && neighbors === 3);
+
+                // Random mutations to prevent stagnation
+                if (Math.random() < this.mutationRate) {
+                    const mutated = !newGrid[x][y];
+                    newGrid[x][y] = mutated;
+
+                    // Check if the mutated cell will die immediately
+                    if (mutated && (neighbors < 2 || neighbors > 3)) {
+                        this.dyingMutations.push([x, y]);
                     }
                 }
-                return count;
             }
+        }
 
-            nextGeneration() {
-                const newGrid = this.grid.map(row => [...row]);
-                
-                for (let x = 0; x < this.rows; x++) {
-                    for (let y = 0; y < this.cols; y++) {
-                        const neighbors = this.countNeighbors(x, y);
-                        
-                        // Standard Game of Life rules
-                        newGrid[x][y] = (this.grid[x][y] && (neighbors === 2 || neighbors === 3)) || (!this.grid[x][y] && neighbors === 3);
+        this.prevGrid = this.grid;
+        this.grid = newGrid;
+    }
 
-                        // Random mutations to prevent stagnation
-                        if (Math.random() < this.mutationRate) {
-                            newGrid[x][y] = !newGrid[x][y];
-                        }
-                    }
+    drawInkBlot() {
+        // Clear with a more opaque background to create a faster fading effect
+        this.ctx.globalCompositeOperation = 'source-over';
+        this.ctx.fillStyle = 'rgba(255,255,255,0.096)'; // Increased opacity for faster fading
+        this.ctx.fillRect(0, 0, this.width, this.height);
+        
+        // Enable blending for ink effect
+        this.ctx.globalCompositeOperation = 'multiply';
+        for (let x = 0; x < this.rows; x++) {
+        for (let y = 0; y < this.cols; y++) {
+            if (this.grid[x][y] && !this.dyingMutations.some(([dx, dy]) => dx === x && dy === y)) {
+                const baseX = y * this.cellSize;
+                const baseY = x * this.cellSize;
+
+                // Determine the type of cell
+                let cellType;
+                if (this.grid[x][y] && this.prevGrid[x][y]) {
+                    // Cell continues living
+                    cellType = 'continue';
+                } else if (this.grid[x][y] && !this.prevGrid[x][y]) {
+                    // Cell is a new mutation
+                    cellType = 'mutate';
+                } else if (!this.grid[x][y] && this.prevGrid[x][y]) {
+                    // Cell is dying
+                    cellType = 'die';
+                } else {
+                    // Cell is empty
+                    cellType = 'empty';
                 }
-                
-                this.grid = newGrid;
-            }
 
-            drawInkBlot() {
-            // Clear with a more opaque background to create a faster fading effect
-            this.ctx.globalCompositeOperation = 'source-over';
-            this.ctx.fillStyle = 'rgba(255,255,255,0.096)'; // Increased opacity for faster fading
-            this.ctx.fillRect(0, 0, this.width, this.height);
-            
-            // Enable blending for ink effect
-            this.ctx.globalCompositeOperation = 'multiply';
-
-            for (let x = 0; x < this.rows; x++) {
-                for (let y = 0; y < this.cols; y++) {
-                    if (this.grid[x][y]) {
-                        const baseX = y * this.cellSize;
-                        const baseY = x * this.cellSize;
-
-                        // Create a gradient for the ink effect
-                        const gradient = this.ctx.createRadialGradient(
-                            baseX, baseY, 0, 
-                            baseX, baseY, this.cellSize * (2 + Math.random())
-                        );
-                        
-                        // Varying opacity and spread
-                        const baseOpacity = 0.8 + Math.random() * 0.2; // Increased base opacity for faster visibility
-                        gradient.addColorStop(0, `rgba(0,0,0,${baseOpacity})`); // Black ink
-                        gradient.addColorStop(0.5, `rgba(0,0,0,${baseOpacity * 0.6})`);
-                        gradient.addColorStop(1, 'rgba(0,0,0,0)');
-
-                        this.ctx.save();
-                        
-                        // Add slight randomness to cell rendering
-                        const jitterX = Math.random() * 2 - 1;
-                        const jitterY = Math.random() * 2 - 1;
-                        
-                        this.ctx.fillStyle = gradient;
+                // Draw the cell based on its type
+                switch (cellType) {
+                    case 'continue':
+                        // Draw a circle for cells that continue living
+                        this.ctx.fillStyle = 'rgba(0,0,0,0.8)';
                         this.ctx.beginPath();
-                        this.ctx.arc(baseX + jitterX, baseY + jitterY, this.cellSize, 0, Math.PI * 2);
+                        this.ctx.arc(baseX + this.cellSize / 2, baseY + this.cellSize / 2, this.cellSize / 2, 0, Math.PI * 2);
                         this.ctx.fill();
 
                         // Draw the mirrored side
                         this.ctx.translate(this.width, 0);
                         this.ctx.scale(-1, 1);
                         this.ctx.beginPath();
-                        this.ctx.arc(baseX + jitterX, baseY + jitterY, this.cellSize, 0, Math.PI * 2);
+                        this.ctx.arc(baseX + this.cellSize / 2, baseY + this.cellSize / 2, this.cellSize / 2, 0, Math.PI * 2);
                         this.ctx.fill();
 
                         this.ctx.restore();
-                    }
+                        break;
+                    case 'mutate':
+                        // Draw a triangle for new mutations with a gradual appearance
+                        this.ctx.globalCompositeOperation = 'source-over';
+                        this.ctx.fillStyle = 'rgba(255,255,255,0.096)';
+                        this.ctx.fillRect(baseX, baseY, this.cellSize, this.cellSize);
+
+                        // Draw the mirrored side
+                        this.ctx.translate(this.width, 0);
+                        this.ctx.scale(-1, 1);
+                        this.ctx.fillRect(baseX, baseY, this.cellSize, this.cellSize);
+
+                        this.ctx.restore();
+
+                        this.ctx.globalCompositeOperation = 'multiply';
+                        this.ctx.fillStyle = 'rgba(0,0,0,0.8)';
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(baseX, baseY);
+                        this.ctx.lineTo(baseX + this.cellSize, baseY);
+                        this.ctx.lineTo(baseX + this.cellSize / 2, baseY + this.cellSize);
+                        this.ctx.fill();
+
+                        // Draw the mirrored side
+                        this.ctx.translate(this.width, 0);
+                        this.ctx.scale(-1, 1);
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(baseX, baseY);
+                        this.ctx.lineTo(baseX + this.cellSize, baseY);
+                        this.ctx.lineTo(baseX + this.cellSize / 2, baseY + this.cellSize);
+                        this.ctx.fill();
+
+                        this.ctx.restore();
+                        break;
+                    case 'die':
+                        // Draw a rectangle for dying cells with a gradual disappearance
+                        this.ctx.fillStyle = 'rgba(0,0,0,0.8)';
+                        this.ctx.beginPath();
+                        this.ctx.rect(baseX, baseY, this.cellSize, this.cellSize);
+                        this.ctx.fill();
+
+                        // Draw the mirrored side
+                        this.ctx.translate(this.width, 0);
+                        this.ctx.scale(-1, 1);
+                        this.ctx.beginPath();
+                        this.ctx.rect(baseX, baseY, this.cellSize, this.cellSize);
+                        this.ctx.fill();
+
+                        this.ctx.restore();
+
+                        // Add a gradual disappearance effect
+                        this.ctx.globalCompositeOperation = 'source-over';
+                        this.ctx.fillStyle = 'rgba(255,255,255,0.096)';
+                        this.ctx.fillRect(baseX, baseY, this.cellSize, this.cellSize);
+
+                        // Draw the mirrored side
+                        this.ctx.translate(this.width, 0);
+                        this.ctx.scale(-1, 1);
+                        this.ctx.fillRect(baseX, baseY, this.cellSize, this.cellSize);
+
+                        this.ctx.restore();
+                        break;
+                    default:
+                        // Do nothing for empty cells
+                        break;
                 }
-            }
-
-            // Periodic intense mutation to prevent complete stagnation
-            this.frameCount++;
-            if (this.frameCount % 200 === 0) {
-                this.randomlyResetGrid();
-            }
-}
-
-            randomlyResetGrid() {
-                // Randomly reset a portion of the grid to introduce new patterns
-                for (let x = 0; x < this.rows; x++) {
-                    for (let y = 0; y < this.cols; y++) {
-                        if (Math.random() < 0.2) {
-                            this.grid[x][y] = Math.random() < 0.5;
-                        }
-                    }
-                }
-            }
-
-            animate() {
-                this.nextGeneration();
-                this.drawInkBlot();
-                setTimeout(() => this.animate(), this.speed); // Control the speed of the simulation
-            }
-
-            start() {
-                this.animate();
             }
         }
+        }
 
-        // Initialize
-        const canvas = document.getElementById('inkCanvas');
-        const inkLife = new InkBlotLife(canvas);
-        inkLife.start();
+        // Periodic intense mutation to prevent complete stagnation
+        this.frameCount++;
+        if (this.frameCount % 200 === 0) {
+            this.randomlyResetGrid();
+        }
+    }
 
-        // Resize handling
-        window.addEventListener('resize', () => {
-            canvas.width = window.innerWidth;
-            canvas.height = window.innerHeight;
-            inkLife.width = canvas.width;
-            inkLife.height = canvas.height;
-            inkLife.cols = Math.floor(canvas.width / inkLife.cellSize);
-            inkLife.rows = Math.floor(canvas.height / inkLife.cellSize);
-            inkLife.grid = inkLife.createGrid();
-        });
+    randomlyResetGrid() {
+        // Randomly reset a portion of the grid to introduce new patterns
+        for (let x = 0; x < this.rows; x++) {
+            for (let y = 0; y < this.cols; y++) {
+                if (Math.random() < 0.2) {
+                    this.grid[x][y] = Math.random() < 0.5;
+                }
+            }
+        }
+        this.prevGrid = this.grid;
+        this.dyingMutations = [];
+    }
+
+    animate() {
+        this.nextGeneration();
+        this.drawInkBlot();
+        setTimeout(() => this.animate(), this.speed); // Control the speed of the simulation
+    }
+
+    start() {
+        this.animate();
+    }
+}
+
+// Initialize
+const canvas = document.getElementById('inkCanvas');
+const inkLife = new InkBlotLife(canvas);
+inkLife.start();
+
+// Resize handling
+window.addEventListener('resize', () => {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    inkLife.width = canvas.width;
+    inkLife.height = canvas.height;
+    inkLife.cols = Math.floor(canvas.width / inkLife.cellSize);
+    inkLife.rows = Math.floor(canvas.height / inkLife.cellSize);
+    inkLife.grid = inkLife.createGrid();
+    inkLife.prevGrid = inkLife.createGrid();
+    inkLife.dyingMutations = [];
+});
     </script>
 </body>
 </html>
