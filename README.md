@@ -5,6 +5,8 @@
 
 A JavaScript implementation of the Game of Life algorithm, rendered on a canvas element.
 
+![](https://github.com/D-Haz/Inki/blob/f0bce3e016b406f8fa07ba9c241e2a80032c86a0/media/inki2D_Screenshot.png)
+
 **Features**
 ------------
 
