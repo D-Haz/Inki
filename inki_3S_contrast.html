@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <title>Dynamic Ink Blot Simulation</title>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700&family=IBM+Plex+Mono:wght@300;500&display=swap" rel="stylesheet">
+    <style>
+        body, html {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background-color: white; /* White background */
+        }
+        canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            mix-blend-mode: multiply;
+            filter: blur(5px) contrast(900%);
+        }
+        #menu {
+        position: fixed;
+        top: 20px;
+        left: 20px;
+        background-color: rgba(0, 0, 0, 0.7);
+        color: #f0f0f0;
+        padding: 20px;
+        border-radius: 15px;
+        box-shadow: 0 10px 30px rgba(0, 0, 0, 0.3);
+        width: 150px;
+        backdrop-filter: blur(10px);
+        border: 1px solid rgba(255, 255, 255, 0.2);
+        transition: all 0.3s ease;
+        font-family: 'IBM Plex Mono';
+        filter: blur(0.43px);
+    }
+
+    #menu:hover {
+        box-shadow: 0 15px 40px rgba(0, 0, 0, 0.4);
+    }
+
+    #menu h2 {
+        text-align: center;
+        color: #ffffff;
+        margin-bottom: 20px;
+        font-weight: 300;
+        letter-spacing: 1px;
+    }
+
+    #menu .control-group {
+        margin-bottom: 15px;
+        display: flex;
+        flex-direction: column;
+    }
+
+    #menu label {
+        margin-bottom: 10px;
+        font-size: 14px;
+        color: #e0e0e0;
+    }
+
+    #menu input[type="range"] {
+        -webkit-appearance: none;
+        width: 100%;
+        height: 8px;
+        background: rgba(255, 255, 255, 0.1);
+        outline: none;
+        border-radius: 4px;
+        transition: all 0.3s ease;
+    }
+
+    #menu input[type="range"]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        appearance: none;
+        width: 16px;
+        height: 16px;
+        background: #ffffff;
+        cursor: pointer;
+        border-radius: 50%;
+        border: 3px solid #4a4a4a;
+        transition: all 0.3s ease;
+    }
+
+    #menu input[type="range"]:hover::-webkit-slider-thumb {
+        background: #e0e0e0;
+        border-color: #ffffff;
+    }
+
+    #menu span {
+        text-align: right;
+        color: #b0b0b0;
+        font-size: 12px;
+        margin-top: 5px;
+    }
+
+    .button-container {
+    display: flex;
+    justify-content: space-between;
+    margin-top: 20px;
+}
+
+.circle-button {
+    width: 40px;
+    height: 40px;
+    border-radius: 100%;
+    color: #ffffff;
+    text-align: center;
+    line-height: 40px;
+    font-size: 18px;
+    font-family: 'IBM Plex Mono';
+    cursor: pointer;
+    transition: background-color 0.3s ease;
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    transition: all 0.3s ease;
+    font-family: 'IBM Plex Mono';
+    filter: blur(0.6px) contrast(5000%);
+        background-color: transparent;
+}
+
+.circle-button:hover {
+    background-color: #e0e0e0;
+    color: #4a4a4a;
+}
+
+    </style>
+</head>
+<body>
+    <canvas id="inkCanvas"></canvas>
+    <div id="menu">
+        <h2>Simulation Parameters</h2>
+        <div class="slider-container">
+            <label for="cell-size">Cell Size:</label>
+            <input type="range" id="cell-size" min="5" max="20" value="11">
+            <span class="slider-value" id="cell-size-value">11</span>
+        </div>
+        <div class="slider-container">
+            <label for="speed">Speed:</label>
+            <input type="range" id="speed" min="10" max="100" value="50">
+            <span class="slider-value" id="speed-value">50</span>
+        </div>
+        <div class="slider-container">
+            <label for="initial-cell-probability">Initial Cell Probability:</label>
+            <input type="range" id="initial-cell-probability" min="0.001" max="0.01" step="0.001" value="0.004">
+            <span class="slider-value" id="initial-cell-probability-value">0.004</span>
+        </div>
+        <div class="slider-container">
+            <label for="mutation-rate">Mutation Rate:</label>
+            <input type="range" id="mutation-rate" min="0.001" max="0.01" step="0.001" value="0.0095">
+            <span class="slider-value" id="mutation-rate-value">0.0095</span>
+        </div>
+        <div class="button-container">
+            <a href="index.html" class="circle-button">1</a>
+            <a href="inki_3S_contrast.html" class="circle-button">2</a>
+            <a href="" class="circle-button">3</a>
+        </div>
+    </div>
+
+    <script>
+class InkBlotLife {
+    constructor(canvas) {
+        this.canvas = canvas;
+        this.ctx = canvas.getContext('2d');
+        this.width = canvas.width = window.innerWidth;
+        this.height = canvas.height = window.innerHeight;
+        
+        this.cellSize = 12; // Adjustable cell size for more detail
+        this.speed = 51; // Speed control (in milliseconds)
+        
+        // Control the number of initial cells and mutation probability
+        this.initialCellProbability = 0.09; // Lower this value for fewer initial cells
+        this.mutationRate = 0.0095; // Probability of random cell state change
+
+        this.cols = Math.floor(this.width / this.cellSize);
+        this.rows = Math.floor(this.height / this.cellSize);
+        
+        this.grid = this.createGrid();
+        this.prevGrid = this.createGrid();
+        this.dyingMutations = [];
+        this.frameCount = 0;
+    }
+
+    createGrid() {
+        return Array.from({ length: this.rows }, () => 
+            Array.from({ length: this.cols }, () => Math.random() < this.initialCellProbability)
+        );
+    }
+
+    countNeighbors(x, y) {
+        let count = 0;
+        for (let i = -1; i <= 1; i++) {
+            for (let j = -1; j <= 1; j++) {
+                if (i === 0 && j === 0) continue;
+                const newX = (x + i + this.rows) % this.rows;
+                const newY = (y + j + this.cols) % this.cols;
+                count += this.grid[newX][newY] ? 1 : 0;
+            }
+        }
+        return count;
+    }
+
+    nextGeneration() {
+        const newGrid = this.grid.map(row => [...row]);
+        this.dyingMutations = [];
+
+        for (let x = 0; x < this.rows; x++) {
+            for (let y = 0; y < this.cols; y++) {
+                const neighbors = this.countNeighbors(x, y);
+
+                // Standard Game of Life rules
+                newGrid[x][y] = (this.grid[x][y] && (neighbors === 2 || neighbors === 3)) || (!this.grid[x][y] && neighbors === 3);
+
+                // Random mutations to prevent stagnation
+                if (Math.random() < this.mutationRate) {
+                    const mutated = !newGrid[x][y];
+                    newGrid[x][y] = mutated;
+
+                    // Check if the mutated cell will die immediately
+                    if (mutated && (neighbors < 2 || neighbors > 3)) {
+                        this.dyingMutations.push([x, y]);
+                    }
+                }
+            }
+        }
+
+        this.prevGrid = this.grid;
+        this.grid = newGrid;
+    }
+
+    drawInkBlot() {
+        // Clear with a more opaque background to create a faster fading effect
+        this.ctx.globalCompositeOperation = 'source-over';
+        this.ctx.fillStyle = 'rgba(255,255,255,0.096)'; // Increased opacity for faster fading
+        this.ctx.fillRect(0, 0, this.width, this.height);
+        
+        // Enable blending for ink effect
+        this.ctx.globalCompositeOperation = 'multiply';
+        for (let x = 0; x < this.rows; x++) {
+        for (let y = 0; y < this.cols; y++) {
+            if (this.grid[x][y] && !this.dyingMutations.some(([dx, dy]) => dx === x && dy === y)) {
+                const baseX = y * this.cellSize;
+                const baseY = x * this.cellSize;
+
+                // Determine the type of cell
+                let cellType;
+                if (this.grid[x][y] && this.prevGrid[x][y]) {
+                    // Cell continues living
+                    cellType = 'continue';
+                } else if (this.grid[x][y] && !this.prevGrid[x][y]) {
+                    // Cell is a new mutation
+                    cellType = 'mutate';
+                } else if (!this.grid[x][y] && this.prevGrid[x][y]) {
+                    // Cell is dying
+                    cellType = 'die';
+                } else {
+                    // Cell is empty
+                    cellType = 'empty';
+                }
+
+                // Draw the cell based on its type
+                switch (cellType) {
+                    case 'continue':
+                        // Draw a circle for cells that continue living
+                        this.ctx.fillStyle = 'rgba(0,0,0,0.8)';
+                        this.ctx.beginPath();
+                        this.ctx.arc(baseX + this.cellSize / 2, baseY + this.cellSize / 2, this.cellSize / 2, 0, Math.PI * 2);
+                        this.ctx.fill();
+
+                        // Draw the mirrored side
+                        this.ctx.translate(this.width, 0);
+                        this.ctx.scale(-1, 1);
+                        this.ctx.beginPath();
+                        this.ctx.arc(baseX + this.cellSize / 2, baseY + this.cellSize / 2, this.cellSize / 2, 0, Math.PI * 2);
+                        this.ctx.fill();
+
+                        this.ctx.restore();
+                        break;
+                    case 'mutate':
+                        // Draw a triangle for new mutations with a gradual appearance
+                        this.ctx.globalCompositeOperation = 'source-over';
+                        this.ctx.fillStyle = 'rgba(255,255,255,0.096)';
+                        this.ctx.fillRect(baseX, baseY, this.cellSize, this.cellSize);
+
+                        // Draw the mirrored side
+                        this.ctx.translate(this.width, 0);
+                        this.ctx.scale(-1, 1);
+                        this.ctx.fillRect(baseX, baseY, this.cellSize, this.cellSize);
+
+                        this.ctx.restore();
+
+                        this.ctx.globalCompositeOperation = 'multiply';
+                        this.ctx.fillStyle = 'rgba(0,0,0,0.8)';
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(baseX, baseY);
+                        this.ctx.lineTo(baseX + this.cellSize, baseY);
+                        this.ctx.lineTo(baseX + this.cellSize / 2, baseY + this.cellSize);
+                        this.ctx.fill();
+
+                        // Draw the mirrored side
+                        this.ctx.translate(this.width, 0);
+                        this.ctx.scale(-1, 1);
+                        this.ctx.beginPath();
+                        this.ctx.moveTo(baseX, baseY);
+                        this.ctx.lineTo(baseX + this.cellSize, baseY);
+                        this.ctx.lineTo(baseX + this.cellSize / 2, baseY + this.cellSize);
+                        this.ctx.fill();
+
+                        this.ctx.restore();
+                        break;
+                    case 'die':
+                        // Draw a rectangle for dying cells with a gradual disappearance
+                        this.ctx.fillStyle = 'rgba(0,0,0,0.8)';
+                        this.ctx.beginPath();
+                        this.ctx.rect(baseX, baseY, this.cellSize, this.cellSize);
+                        this.ctx.fill();
+
+                        // Draw the mirrored side
+                        this.ctx.translate(this.width, 0);
+                        this.ctx.scale(-1, 1);
+                        this.ctx.beginPath();
+                        this.ctx.rect(baseX, baseY, this.cellSize, this.cellSize);
+                        this.ctx.fill();
+
+                        this.ctx.restore();
+
+                        // Add a gradual disappearance effect
+                        this.ctx.globalCompositeOperation = 'source-over';
+                        this.ctx.fillStyle = 'rgba(255,255,255,0.096)';
+                        this.ctx.fillRect(baseX, baseY, this.cellSize, this.cellSize);
+
+                        // Draw the mirrored side
+                        this.ctx.translate(this.width, 0);
+                        this.ctx.scale(-1, 1);
+                        this.ctx.fillRect(baseX, baseY, this.cellSize, this.cellSize);
+
+                        this.ctx.restore();
+                        break;
+                    default:
+                        // Do nothing for empty cells
+                        break;
+                }
+            }
+        }
+        }
+
+        // Periodic intense mutation to prevent complete stagnation
+        this.frameCount++;
+        if (this.frameCount % 200 === 0) {
+            this.randomlyResetGrid();
+        }
+    }
+
+    randomlyResetGrid() {
+        // Randomly reset a portion of the grid to introduce new patterns
+        for (let x = 0; x < this.rows; x++) {
+            for (let y = 0; y < this.cols; y++) {
+                if (Math.random() < 0.2) {
+                    this.grid[x][y] = Math.random() < 0.5;
+                }
+            }
+        }
+        this.prevGrid = this.grid;
+        this.dyingMutations = [];
+    }
+
+    animate() {
+        this.nextGeneration();
+        this.drawInkBlot();
+        setTimeout(() => this.animate(), this.speed); // Control the speed of the simulation
+    }
+
+    start() {
+        this.animate();
+    }
+
+}
+
+function updateValueDisplay(input, valueDisplay) {
+            valueDisplay.textContent = input.value;
+        }
+
+// Initialize
+const canvas = document.getElementById('inkCanvas');
+const inkLife = new InkBlotLife(canvas);
+inkLife.start();
+
+// Resize handling
+window.addEventListener('resize', () => {
+    canvas.width = window.innerWidth;
+    canvas.height = window.innerHeight;
+    inkLife.width = canvas.width;
+    inkLife.height = canvas.height;
+    inkLife.cols = Math.floor(canvas.width / inkLife.cellSize);
+    inkLife.rows = Math.floor(canvas.height / inkLife.cellSize);
+    inkLife.grid = inkLife.createGrid();
+    inkLife.prevGrid = inkLife.createGrid();
+    inkLife.dyingMutations = [];
+});
+
+        // Get the menu elements
+        const cellSizeInput = document.getElementById('cell-size');
+        const speedInput = document.getElementById('speed');
+        const initialCellProbabilityInput = document.getElementById('initial-cell-probability');
+        const mutationRateInput = document.getElementById('mutation-rate');
+
+        // Get the value display elements
+        const cellSizeValue = document.getElementById('cell-size-value');
+        const speedValue = document.getElementById('speed-value');
+        const initialCellProbabilityValue = document.getElementById('initial-cell-probability-value');
+        const mutationRateValue = document.getElementById('mutation-rate-value');
+
+        // Update the value displays when the input values change
+        cellSizeInput.addEventListener('input', () => {
+            updateValueDisplay(cellSizeInput, cellSizeValue);
+            inkLife.cellSize = parseInt(cellSizeInput.value);
+            inkLife.cols = Math.floor(inkLife.width / inkLife.cellSize);
+            inkLife.rows = Math.floor(inkLife.height / inkLife.cellSize);
+            inkLife.grid = inkLife.createGrid();
+        });
+
+        speedInput.addEventListener('input', () => {
+            updateValueDisplay(speedInput, speedValue);
+            inkLife.speed = parseInt(speedInput.value);
+        });
+
+        initialCellProbabilityInput.addEventListener('input', () => {
+            updateValueDisplay(initialCellProbabilityInput, initialCellProbabilityValue);
+            inkLife.initialCellProbability = parseFloat(initialCellProbabilityInput.value);
+            inkLife.grid = inkLife.createGrid();
+        });
+
+        mutationRateInput.addEventListener('input', () => {
+            updateValueDisplay(mutationRateInput, mutationRateValue);
+            inkLife.mutationRate = parseFloat(mutationRateInput.value);
+        });
+
+    </script>
+</body>
+</html>
