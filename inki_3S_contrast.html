@@ -133,13 +133,13 @@
         <h2>Simulation Parameters</h2>
         <div class="slider-container">
             <label for="cell-size">Cell Size:</label>
-            <input type="range" id="cell-size" min="5" max="20" value="17">
-            <span class="slider-value" id="cell-size-value">17</span>
+            <input type="range" id="cell-size" min="5" max="20" value="19">
+            <span class="slider-value" id="cell-size-value">19</span>
         </div>
         <div class="slider-container">
             <label for="speed">Speed(ms):</label>
-            <input type="range" id="speed" min="10" max="100" value="37">
-            <span class="slider-value" id="speed-value">37</span>
+            <input type="range" id="speed" min="10" max="100" value="48">
+            <span class="slider-value" id="speed-value">48</span>
         </div>
         <div class="slider-container">
             <label for="initial-cell-probability">Initial Cell Probability:</label>
@@ -166,8 +166,8 @@ class InkBlotLife {
         this.width = canvas.width = window.innerWidth;
         this.height = canvas.height = window.innerHeight;
         
-        this.cellSize = 12; // Adjustable cell size for more detail
-        this.speed = 51; // Speed control (in milliseconds)
+        this.cellSize = 19; // Adjustable cell size for more detail
+        this.speed = 48; // Speed control (in milliseconds)
         
         // Control the number of initial cells and mutation probability
         this.initialCellProbability = 0.09; // Lower this value for fewer initial cells
